@@ -5,45 +5,48 @@ import { cleanValue } from '../utils/parser';
 interface CopyButtonProps {
     headers: string[];
     data: Record<string, any>[];
+    title?: string;
 }
 
-export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data, title }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = useCallback(async () => {
-        // Create TSV content
-        const headerRow = headers.join('\t');
-        const dataRows = data.map(row => {
-            return headers.map(header => {
-                const val = row[header];
-                return cleanValue(val);
-            }).join('\t');
-        }).join('\n');
-
-        const tsvContent = `${headerRow}\n${dataRows}`;
+        const escapeHtml = (text: string) => {
+            if (typeof text !== 'string') return text;
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        };
 
         // Create Word-optimized HTML content
         const htmlTable = `
             <html>
             <head>
+                <meta http-equiv="content-type" content="text/html; charset=utf-8">
                 <style>
                     table { border-collapse: collapse; width: auto; table-layout: auto; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; background-color: #ffffff; }
                     th { background-color: #D3D3D3; color: #000000; font-weight: bold; border: 1px solid #000000; padding: 6px 10px; text-transform: uppercase; font-size: 10pt; text-align: center; }
                     td { border: 1px solid #000000; padding: 6px 10px; color: #000000; font-size: 10pt; text-align: center; }
+                    h2 { font-family: Calibri, Arial, sans-serif; font-size: 14pt; color: #000000; margin-bottom: 10px; }
                 </style>
             </head>
             <body>
             <!--StartFragment-->
+            ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}
             <table>
                 <thead>
                     <tr>
-                        ${headers.map(h => `<th scope="col">${h}</th>`).join('')}
+                        ${headers.map(h => `<th scope="col">${escapeHtml(h)}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
                     ${data.map(row => `
                         <tr>
-                            ${headers.map(h => `<td>${cleanValue(row[h])}</td>`).join('')}
+                            ${headers.map(h => `<td>${escapeHtml(String(cleanValue(row[h])))}</td>`).join('')}
                         </tr>
                     `).join('')}
                 </tbody>
@@ -54,28 +57,24 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
         `;
 
         try {
-            // Priority 1: Modern Clipboard API with multi-MIME support
+            // Priority 1: Modern Clipboard API with high-fidelity HTML-only support for Word
             if (navigator.clipboard && navigator.clipboard.write) {
                 const clipboardItem = new ClipboardItem({
-                    "text/plain": new Blob([tsvContent], { type: "text/plain" }),
                     "text/html": new Blob([htmlTable], { type: "text/html" })
                 });
                 await navigator.clipboard.write([clipboardItem]);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             } else {
-                // Fallback for Safari/Legacy browsers
                 throw new Error("Modern clipboard write not available");
             }
         } catch (err) {
             console.warn('Modern clipboard API failed, trying fallback...', err);
 
-            // Fallback: Using execCommand('copy') with 'copy' event listener
             const listener = (e: ClipboardEvent) => {
                 e.preventDefault();
                 if (e.clipboardData) {
                     e.clipboardData.setData('text/html', htmlTable);
-                    e.clipboardData.setData('text/plain', tsvContent);
                 }
             };
 
@@ -90,7 +89,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
                 console.error('All copy methods failed');
             }
         }
-    }, [headers, data]);
+    }, [headers, data, title]);
 
     return (
         <button

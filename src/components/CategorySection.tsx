@@ -30,29 +30,47 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
 
     const displayHeaders = useMemo(() => visibleHeaders.map(h => isTranslated ? (DICTIONARY[h] || h) : h), [visibleHeaders, isTranslated]);
 
-    const displayData = useMemo(() => data.map(row => {
-        const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
-        const requestType = (row['Request Type'] || '').trim();
-        const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
+    const displayData = useMemo(() => {
+        const processed = data.map(row => {
+            const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
+            const requestType = (row['Request Type'] || '').trim();
+            const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
 
-        visibleHeaders.forEach(h => {
-            const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
-            let val = (row as any)[h];
+            visibleHeaders.forEach(h => {
+                const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
+                let val = (row as any)[h];
 
-            // Value Masking Rules
-            if (h === 'Cores' && isZonal) {
-                val = 'N/A';
-            } else if (h === 'Zone' && !isZonal) {
-                val = 'N/A';
-            }
+                // Value Masking Rules
+                if (h === 'Cores' && isZonal) {
+                    val = 'N/A';
+                } else if (h === 'Zone' && !isZonal) {
+                    val = 'N/A';
+                }
 
-            if (isTranslated) {
-                val = DICTIONARY[val] || val;
-            }
-            newRow[translatedKey] = cleanValue(val);
+                if (isTranslated) {
+                    val = DICTIONARY[val] || val;
+                }
+
+                // Value Hygiene: No "Unknown" cells
+                if (val === 'Unknown' || val === 'Desconhecido') {
+                    val = '';
+                }
+
+                newRow[translatedKey] = cleanValue(val);
+            });
+            return newRow;
         });
-        return newRow;
-    }), [data, visibleHeaders, isTranslated]);
+
+        // Strict Filtering: Remove empty or placeholder-only rows
+        return processed.filter(row => {
+            const hasSubId = !!row[isTranslated ? DICTIONARY['Subscription ID'] : 'Subscription ID'];
+            const hasVmType = !!row[isTranslated ? DICTIONARY['VM Type'] : 'VM Type'] && row[isTranslated ? DICTIONARY['VM Type'] : 'VM Type'] !== 'N/A';
+            const hasRegion = !!row[isTranslated ? DICTIONARY['Region'] : 'Region'] && row[isTranslated ? DICTIONARY['Region'] : 'Region'] !== 'N/A';
+
+            // A row is meaningful if it has at least a Subscription ID or both VM Type and Region
+            return hasSubId || (hasVmType && hasRegion);
+        });
+    }, [data, visibleHeaders, isTranslated]);
 
     const exportFilename = useMemo(() => {
         const cleanName = categoryName.replace(/\s+/g, '_');
@@ -60,6 +78,8 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             ? `${cleanName}_Dados_Cota_pt-BR.xlsx`
             : `${cleanName}_Quota_Data_en-US.xlsx`;
     }, [categoryName, isTranslated]);
+
+    const displayCategoryName = isTranslated ? (DICTIONARY[categoryName] || categoryName) : categoryName;
 
     return (
         <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-md">
@@ -72,9 +92,9 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                         <ChevronDown className="h-5 w-5 text-gray-500" />
                     </div>
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                        {categoryName}
+                        {displayCategoryName}
                         <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                            {data.length}
+                            {displayData.length}
                         </span>
                     </h3>
                 </div>
@@ -85,7 +105,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                         filename={exportFilename}
                     />
                     <TranslateButton isTranslated={isTranslated} onToggle={onToggleTranslation} />
-                    <CopyButton headers={visibleHeaders} data={data} />
+                    <CopyButton headers={displayHeaders} data={displayData} title={displayCategoryName} />
                 </div>
             </div>
             {isOpen && (

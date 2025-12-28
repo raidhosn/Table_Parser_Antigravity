@@ -26,32 +26,56 @@ export const CategorizedResultsView: React.FC<ResultsViewProps> = ({
     isTranslated,
     setIsTranslated
 }) => {
-    const visibleHeaders = useMemo(() => getVisibleHeaders(finalHeaders, transformedData), [finalHeaders, transformedData]);
+    // Absolute Purge: Filter out "Unknown" rows and invalid data at the source
+    const filteredRows = useMemo(() => transformedData.filter(row => {
+        const type = (row['Request Type'] || '').trim();
+        if (type === 'Unknown' || type === 'Desconhecido') return false;
+
+        // Data Integrity: Must have Sub ID or (VM Type AND Region)
+        const hasSubId = !!row['Subscription ID'];
+        const hasVmType = !!row['VM Type'] && row['VM Type'] !== 'N/A';
+        const hasRegion = !!row['Region'] && row['Region'] !== 'N/A';
+
+        return hasSubId || (hasVmType && hasRegion);
+    }), [transformedData]);
+
+    const visibleHeaders = useMemo(() => getVisibleHeaders(finalHeaders, filteredRows), [finalHeaders, filteredRows]);
     const displayHeaders = useMemo(() => visibleHeaders.map(h => isTranslated ? (DICTIONARY[h] || h) : h), [visibleHeaders, isTranslated]);
 
-    const displayData = useMemo(() => transformedData.map(row => {
-        const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
-        const requestType = (row['Request Type'] || '').trim();
-        const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
+    const displayData = useMemo(() => {
+        return filteredRows.map(row => {
+            const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
+            const requestType = (row['Request Type'] || '').trim();
+            const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
 
-        visibleHeaders.forEach(h => {
-            const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
-            let val = (row as any)[h];
+            visibleHeaders.forEach(h => {
+                const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
+                let val = (row as any)[h];
 
-            // Value Masking Rules
-            if (h === 'Cores' && isZonal) {
-                val = 'N/A';
-            } else if (h === 'Zone' && !isZonal) {
-                val = 'N/A';
-            }
+                // Value Masking Rules
+                if (h === 'Cores' && isZonal) {
+                    val = 'N/A';
+                } else if (h === 'Zone' && !isZonal) {
+                    val = 'N/A';
+                }
 
-            if (isTranslated) {
-                val = DICTIONARY[val] || val;
-            }
-            newRow[translatedKey] = cleanValue(val);
+                if (isTranslated) {
+                    val = DICTIONARY[val] || val;
+                }
+
+                // Value Hygiene: No "Unknown" cells
+                if (val === 'Unknown' || val === 'Desconhecido') {
+                    val = '';
+                }
+
+                newRow[translatedKey] = cleanValue(val);
+            });
+            return newRow;
         });
-        return newRow;
-    }), [transformedData, visibleHeaders, isTranslated]);
+    }, [filteredRows, visibleHeaders, isTranslated]);
+
+    const sectionTitle = isTranslated ? DICTIONARY['Unified Table'] : 'Unified Table';
+    const mainTitle = isTranslated ? DICTIONARY['Categorized Results'] : 'Categorized Results';
 
     const exportFilename = useMemo(() => {
         return isTranslated
@@ -63,25 +87,34 @@ export const CategorizedResultsView: React.FC<ResultsViewProps> = ({
         <div className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
-                    <p className="text-3xl font-bold text-blue-600">{transformedData.length}</p>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Total Rows</p>
+                    <p className="text-3xl font-bold text-blue-600">{filteredRows.length}</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Total de Linhas' : 'Total Rows'}
+                    </p>
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
-                    <p className="text-3xl font-bold text-purple-600">{Object.keys(categorizedData).length}</p>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Categories</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                        {Object.keys(categorizedData).filter(c => c !== 'Unknown' && c !== 'Desconhecido').length}
+                    </p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Categorias' : 'Categories'}
+                    </p>
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
                     <p className="text-3xl font-bold text-emerald-600">{visibleHeaders.length}</p>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Columns</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Colunas' : 'Columns'}
+                    </p>
                 </div>
             </div>
 
             <div className="mb-12">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center">
                     <FileType className="mr-2 h-6 w-6 text-gray-600" />
-                    Categorized Results
+                    {mainTitle}
                 </h2>
                 {Object.entries(categorizedData)
+                    .filter(([category]) => category !== 'Unknown' && category !== 'Desconhecido')
                     .sort(([a], [b]) => a.localeCompare(b))
                     .map(([category, data]) => (
                         <CategorySection
@@ -101,12 +134,12 @@ export const CategorizedResultsView: React.FC<ResultsViewProps> = ({
                         <div className="bg-blue-100 p-2 rounded-lg">
                             <FileSpreadsheet className="h-6 w-6 text-blue-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">Unified Table</h2>
+                        <h2 className="text-2xl font-bold text-gray-800">{sectionTitle}</h2>
                     </div>
                     <div className="flex items-center space-x-3">
                         <ExcelExportButton headers={displayHeaders} data={displayData} filename={exportFilename} />
                         <TranslateButton isTranslated={isTranslated} onToggle={() => setIsTranslated(!isTranslated)} />
-                        <CopyButton headers={visibleHeaders} data={transformedData} />
+                        <CopyButton headers={displayHeaders} data={displayData} title={sectionTitle} />
                     </div>
                 </div>
                 <DataTable headers={displayHeaders} data={displayData} />
@@ -125,32 +158,55 @@ export const UnifiedResultsView: React.FC<ResultsViewProps> = ({
     const headersWithRdQuota = useMemo(() => ['RDQuota', ...finalHeaders], [finalHeaders]);
     const unifiedDataWithRdQuota = useMemo(() => transformedData.map(row => ({ ...row, RDQuota: row['Original ID'] })), [transformedData]);
 
-    const visibleHeaders = useMemo(() => getVisibleHeaders(headersWithRdQuota, unifiedDataWithRdQuota), [headersWithRdQuota, unifiedDataWithRdQuota]);
+    // Absolute Purge: Filter out "Unknown" rows and invalid data at the source
+    const filteredRows = useMemo(() => unifiedDataWithRdQuota.filter(row => {
+        const type = (row['Request Type'] || '').trim();
+        if (type === 'Unknown' || type === 'Desconhecido') return false;
+
+        const hasSubId = !!row['Subscription ID'];
+        const hasVmType = !!row['VM Type'] && row['VM Type'] !== 'N/A';
+        const hasRegion = !!row['Region'] && row['Region'] !== 'N/A';
+
+        return hasSubId || (hasVmType && hasRegion);
+    }), [unifiedDataWithRdQuota]);
+
+    const visibleHeaders = useMemo(() => getVisibleHeaders(headersWithRdQuota, filteredRows), [headersWithRdQuota, filteredRows]);
     const displayHeaders = useMemo(() => visibleHeaders.map(h => isTranslated ? (DICTIONARY[h] || h) : h), [visibleHeaders, isTranslated]);
 
-    const displayData = useMemo(() => unifiedDataWithRdQuota.map(row => {
-        const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
-        const requestType = (row['Request Type'] || '').trim();
-        const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
+    const displayData = useMemo(() => {
+        return filteredRows.map(row => {
+            const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
+            const requestType = (row['Request Type'] || '').trim();
+            const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
 
-        visibleHeaders.forEach(h => {
-            const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
-            let val = (row as any)[h];
+            visibleHeaders.forEach(h => {
+                const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
+                let val = (row as any)[h];
 
-            // Value Masking Rules
-            if (h === 'Cores' && isZonal) {
-                val = 'N/A';
-            } else if (h === 'Zone' && !isZonal) {
-                val = 'N/A';
-            }
+                // Value Masking Rules
+                if (h === 'Cores' && isZonal) {
+                    val = 'N/A';
+                } else if (h === 'Zone' && !isZonal) {
+                    val = 'N/A';
+                }
 
-            if (isTranslated) {
-                val = DICTIONARY[val] || val;
-            }
-            newRow[translatedKey] = cleanValue(val);
+                if (isTranslated) {
+                    val = DICTIONARY[val] || val;
+                }
+
+                // Value Hygiene: No "Unknown" cells
+                if (val === 'Unknown' || val === 'Desconhecido') {
+                    val = '';
+                }
+
+                newRow[translatedKey] = cleanValue(val);
+            });
+            return newRow;
         });
-        return newRow;
-    }), [unifiedDataWithRdQuota, visibleHeaders, isTranslated]);
+    }, [filteredRows, visibleHeaders, isTranslated]);
+
+    const sectionTitle = isTranslated ? `${DICTIONARY['Unified Table']} (${DICTIONARY['RDQuota']})` : 'Unified Table (with IDs)';
+    const mainTitle = isTranslated ? DICTIONARY['RDQuotas Categorized'] : 'RDQuotas Categorized';
 
     const exportFilename = useMemo(() => {
         return isTranslated
@@ -162,25 +218,34 @@ export const UnifiedResultsView: React.FC<ResultsViewProps> = ({
         <div className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
-                    <p className="text-3xl font-bold text-blue-600">{transformedData.length}</p>
-                    <p className="text-sm font-medium text-gray-500">Total Rows</p>
+                    <p className="text-3xl font-bold text-blue-600">{filteredRows.length}</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Total de Linhas' : 'Total Rows'}
+                    </p>
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
-                    <p className="text-3xl font-bold text-purple-600">{Object.keys(categorizedData).length}</p>
-                    <p className="text-sm font-medium text-gray-500">Categories</p>
+                    <p className="text-3xl font-bold text-purple-600">
+                        {Object.keys(categorizedData).filter(c => c !== 'Unknown' && c !== 'Desconhecido').length}
+                    </p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Categorias' : 'Categories'}
+                    </p>
                 </div>
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
                     <p className="text-3xl font-bold text-emerald-600">{visibleHeaders.length}</p>
-                    <p className="text-sm font-medium text-gray-500">Columns</p>
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">
+                        {isTranslated ? 'Colunas' : 'Columns'}
+                    </p>
                 </div>
             </div>
 
             <div className="mb-12">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center">
                     <FileType className="mr-2 h-6 w-6 text-gray-600" />
-                    RDQuotas Categorized
+                    {mainTitle}
                 </h2>
                 {Object.entries(categorizedData)
+                    .filter(([category]) => category !== 'Unknown' && category !== 'Desconhecido')
                     .sort(([a], [b]) => a.localeCompare(b))
                     .map(([category, data]) => (
                         <CategorySection
@@ -200,12 +265,12 @@ export const UnifiedResultsView: React.FC<ResultsViewProps> = ({
                         <div className="bg-blue-100 p-2 rounded-lg">
                             <FileSpreadsheet className="h-6 w-6 text-blue-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">Unified Table (with IDs)</h2>
+                        <h2 className="text-2xl font-bold text-gray-800">{sectionTitle}</h2>
                     </div>
                     <div className="flex items-center space-x-3">
                         <ExcelExportButton headers={displayHeaders} data={displayData} filename={exportFilename} />
                         <TranslateButton isTranslated={isTranslated} onToggle={() => setIsTranslated(!isTranslated)} />
-                        <CopyButton headers={visibleHeaders} data={unifiedDataWithRdQuota} />
+                        <CopyButton headers={displayHeaders} data={displayData} title={sectionTitle} />
                     </div>
                 </div>
                 <DataTable headers={displayHeaders} data={displayData} />

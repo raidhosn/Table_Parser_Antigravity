@@ -40,7 +40,7 @@ export const HIDE_CORES_REQUEST_TYPES = [
 export const DICTIONARY: Record<string, string> = {
     // Headers
     'Subscription ID': 'ID da Assinatura',
-    'Request Type': 'Tipo de Requisição',
+    'Request Type': 'Tipo de Solicitação',
     'VM Type': 'Tipo de VM',
     'Region': 'Região',
     'Zone': 'Zona',
@@ -48,21 +48,33 @@ export const DICTIONARY: Record<string, string> = {
     'Status': 'Status',
     'RDQuota': 'RDQuota',
 
+    // Section Titles
+    'Categorized Results': 'Resultados Categorizados',
+    'Unified Table': 'Tabela Unificada',
+    'Unified Results': 'Resultados Unificados',
+    'RDQuotas Categorized': 'RDQuotas Categorizados',
+
     // Request Types
     'Zonal Enablement': 'Habilitação Zonal',
     'Region Enablement': 'Habilitação Regional',
     'Region Enablement & Quota Increase': 'Habilitação Regional & Aumento de Cota',
     'Quota Increase': 'Aumento de Cota',
+    'Quota Decrease': 'Redução de Cota',
     'Region Limit Increase': 'Aumento de Limite Regional',
     'Reserved Instances': 'Instâncias Reservadas',
+    'RI Enablement/Whitelisting': 'Habilitação de RI / Whitelisting',
+    'Spot / Low Priority': 'Spot / Baixa Prioridade',
 
     // Statuses
     'Approved': 'Aprovado',
     'Fulfilled': 'Atendido',
-    'Backlogged': 'Pendente (Backlogged)',
+    'Backlogged': 'Pendente',
     'Pending Customer Response': 'Aguardando Resposta do Cliente',
     'Pending': 'Pendente',
+    'Rejected': 'Rejeitado',
+    'Cancelled': 'Cancelado',
 
     // Common Values
-    'N/A': 'N/A'
+    'N/A': 'N/A',
+    'Unknown': 'Desconhecido'
 };
