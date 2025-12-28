@@ -5,10 +5,9 @@ import { cleanValue } from '../utils/parser';
 interface CopyButtonProps {
     headers: string[];
     data: Record<string, any>[];
-    title?: string;
 }
 
-export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data, title }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = useCallback(async () => {
@@ -31,12 +30,10 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data, title }) 
                     table { border-collapse: collapse; width: auto; table-layout: auto; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; background-color: #ffffff; }
                     th { background-color: #D3D3D3; color: #000000; font-weight: bold; border: 1px solid #000000; padding: 6px 10px; text-transform: uppercase; font-size: 10pt; text-align: center; }
                     td { border: 1px solid #000000; padding: 6px 10px; color: #000000; font-size: 10pt; text-align: center; }
-                    h2 { font-family: Calibri, Arial, sans-serif; font-size: 14pt; color: #000000; margin-bottom: 10px; }
                 </style>
             </head>
             <body>
             <!--StartFragment-->
-            ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}
             <table>
                 <thead>
                     <tr>
@@ -89,7 +86,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data, title }) 
                 console.error('All copy methods failed');
             }
         }
-    }, [headers, data, title]);
+    }, [headers, data]);
 
     return (
         <button
