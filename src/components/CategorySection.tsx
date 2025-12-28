@@ -7,6 +7,8 @@ import { CopyButton } from './CopyButton';
 import { finalHeaders as defaultHeaders, DICTIONARY } from '../utils/constants';
 import { cleanValue } from '../utils/parser';
 
+import { getVisibleHeaders } from '../utils/visibility';
+
 interface CategorySectionProps {
     categoryName: string;
     data: Record<string, any>[];
@@ -24,25 +26,26 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
 }) => {
     const [isOpen, setIsOpen] = React.useState(true);
 
-    const visibleHeaders = useMemo(() => {
-        if (data.length === 0) return headers;
-        const firstRow = data[0];
-        const isZonal = firstRow.requestTypeCode === 'ZONAL_ENABLEMENT';
-
-        return headers.filter(h => {
-            if (h === 'Cores' && isZonal) return false;
-            if (h === 'Zone' && !isZonal) return false;
-            return true;
-        });
-    }, [data, headers]) as string[];
+    const visibleHeaders = useMemo(() => getVisibleHeaders(headers, data), [data, headers]);
 
     const displayHeaders = useMemo(() => visibleHeaders.map(h => isTranslated ? (DICTIONARY[h] || h) : h), [visibleHeaders, isTranslated]);
 
     const displayData = useMemo(() => data.map(row => {
         const newRow: Record<string, any> = { 'Original ID': row['Original ID'] };
+        const requestType = (row['Request Type'] || '').trim();
+        const isZonal = requestType === 'Zonal Enablement' || requestType === 'Habilitação Zonal';
+
         visibleHeaders.forEach(h => {
             const translatedKey = isTranslated ? (DICTIONARY[h] || h) : h;
             let val = (row as any)[h];
+
+            // Value Masking Rules
+            if (h === 'Cores' && isZonal) {
+                val = 'N/A';
+            } else if (h === 'Zone' && !isZonal) {
+                val = 'N/A';
+            }
+
             if (isTranslated) {
                 val = DICTIONARY[val] || val;
             }
@@ -82,7 +85,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                         filename={exportFilename}
                     />
                     <TranslateButton isTranslated={isTranslated} onToggle={onToggleTranslation} />
-                    <CopyButton headers={headers} data={data} />
+                    <CopyButton headers={visibleHeaders} data={data} />
                 </div>
             </div>
             {isOpen && (

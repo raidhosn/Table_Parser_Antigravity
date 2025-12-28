@@ -10,7 +10,7 @@ interface CopyButtonProps {
 export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
     const [copied, setCopied] = useState(false);
 
-    const handleCopy = useCallback(() => {
+    const handleCopy = useCallback(async () => {
         // Create TSV content
         const headerRow = headers.join('\t');
         const dataRows = data.map(row => {
@@ -22,56 +22,74 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ headers, data }) => {
 
         const tsvContent = `${headerRow}\n${dataRows}`;
 
-        // Create a temporary textarea to copy from (fallback)
-        const textArea = document.createElement("textarea");
-        textArea.value = tsvContent;
-        document.body.appendChild(textArea);
-        textArea.select();
+        // Create Word-optimized HTML content
+        const htmlTable = `
+            <html>
+            <head>
+                <style>
+                    table { border-collapse: collapse; width: auto; table-layout: auto; border: 1px solid #000000; font-family: Calibri, Arial, sans-serif; background-color: #ffffff; }
+                    th { background-color: #D3D3D3; color: #000000; font-weight: bold; border: 1px solid #000000; padding: 6px 10px; text-transform: uppercase; font-size: 10pt; text-align: center; }
+                    td { border: 1px solid #000000; padding: 6px 10px; color: #000000; font-size: 10pt; text-align: center; }
+                </style>
+            </head>
+            <body>
+            <!--StartFragment-->
+            <table>
+                <thead>
+                    <tr>
+                        ${headers.map(h => `<th scope="col">${h}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.map(row => `
+                        <tr>
+                            ${headers.map(h => `<td>${cleanValue(row[h])}</td>`).join('')}
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <!--EndFragment-->
+            </body>
+            </html>
+        `;
 
         try {
-            // Try modern API first
-            navigator.clipboard.writeText(tsvContent).then(() => {
+            // Priority 1: Modern Clipboard API with multi-MIME support
+            if (navigator.clipboard && navigator.clipboard.write) {
+                const clipboardItem = new ClipboardItem({
+                    "text/plain": new Blob([tsvContent], { type: "text/plain" }),
+                    "text/html": new Blob([htmlTable], { type: "text/html" })
+                });
+                await navigator.clipboard.write([clipboardItem]);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
-            }).catch(() => {
-                // Fallback to execCommand
-                document.execCommand('copy');
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            });
+            } else {
+                // Fallback for Safari/Legacy browsers
+                throw new Error("Modern clipboard write not available");
+            }
         } catch (err) {
-            console.error('Failed to copy', err);
-            // Fallback
-            document.execCommand('copy');
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            console.warn('Modern clipboard API failed, trying fallback...', err);
+
+            // Fallback: Using execCommand('copy') with 'copy' event listener
+            const listener = (e: ClipboardEvent) => {
+                e.preventDefault();
+                if (e.clipboardData) {
+                    e.clipboardData.setData('text/html', htmlTable);
+                    e.clipboardData.setData('text/plain', tsvContent);
+                }
+            };
+
+            document.addEventListener('copy', listener);
+            const success = document.execCommand('copy');
+            document.removeEventListener('copy', listener);
+
+            if (success) {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            } else {
+                console.error('All copy methods failed');
+            }
         }
-
-        document.body.removeChild(textArea);
-
-        // Also try to copy as HTML table for Excel pasting support
-        const listener = (e: ClipboardEvent) => {
-            e.preventDefault();
-            const htmlTable = `
-                <table>
-                    <thead>
-                        <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-                    </thead>
-                    <tbody>
-                        ${data.map(row => `
-                            <tr>${headers.map(h => `<td>${cleanValue(row[h])}</td>`).join('')}</tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-            e.clipboardData?.setData('text/html', htmlTable);
-            e.clipboardData?.setData('text/plain', tsvContent);
-        };
-
-        document.addEventListener('copy', listener);
-        document.execCommand('copy');
-        document.removeEventListener('copy', listener);
-
     }, [headers, data]);
 
     return (

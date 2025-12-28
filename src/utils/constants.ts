@@ -11,10 +11,30 @@ export const finalHeaders: (keyof Omit<TransformedRow, 'Original ID'> & string)[
 ];
 
 export const NO_ZONE_REQUEST_TYPES = [
+    // English
     "Quota Increase",
-    "Region Limit Increase",
+    "Quota Decrease",
     "Region Enablement",
-    "Region Enablement & Quota Increase"
+    "Spot / Low Priority",
+    "Region Limit Increase",
+    "Reserved Instances",
+    "RI Enablement/Whitelisting",
+    "Region Enablement & Quota Increase",
+    // Portuguese
+    "Aumento de cota",
+    "Redução de Cota",
+    "Habilitação Regional",
+    "Spot / Baixa prioridade",
+    "Aumento de Limite Regional",
+    "Instâncias reservadas",
+    "Habilitação Regional e Aumento de Cota"
+];
+
+export const HIDE_CORES_REQUEST_TYPES = [
+    "Zone",
+    "Zona",
+    "Zonal Enablement",
+    "Habilitação Zonal"
 ];
 
 export const DICTIONARY: Record<string, string> = {
